@@ -30,37 +30,44 @@ def login():
     return jsonify(response.json()), response.status_code
 
 # Conversation API
-@app.route('/api/convos/random', methods=['GET'])
-def get_convos():
-    response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos/random')
-    return jsonify(response.json()), response.status_code
-
 @app.route('/api/convos', methods=['GET'])
-def get_convos_by_user_id():
-    user_id = request.args.get('userId')
-    page = request.args.get('page', 1)
-    per_page = request.args.get('per_page', 10)
-    response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos', params={'userId': user_id, 'page': page, 'per_page': per_page})
-    return jsonify(response.json()), response.status_code
-
-@app.route('/api/convos/<int:id>/messages', methods=['GET'])
-def get_convos_by_id(id):
-    response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos/{id}/messages')
-    return jsonify(response.json()), response.status_code
-
-@app.route('/api/convos/<int:id>', methods=['DELETE'])
-def delete_convos_by_msg_id(id):
-    response = requests.delete(f'{CONVERSATION_SERVICE_URL}/api/convos/{id}')
-    return jsonify(response.json()), response.status_code
-
-@app.route('/api/convos/<int:id>', methods=['PUT'])
-def add_reply_to_conversation(id):
-    response = requests.put(f'{CONVERSATION_SERVICE_URL}/api/convos/{id}', json=request.json)
+def get_convos():
+    user_id = request.args.get('user_id')
+    limit = request.args.get('limit', 10)
+    random = request.args.get('random', 'false')
+    
+    params = {
+        'user_id': user_id,
+        'limit': limit,
+        'random': random
+    }
+    
+    response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos', params=params)
     return jsonify(response.json()), response.status_code
 
 @app.route('/api/convos', methods=['POST'])
 def create_convo():
-    response = requests.post(f'{CONVERSATION_SERVICE_URL}/api/convos', json=request.json)
+    data = {
+        'user_id': request.json.get('user_id'),
+        'message': request.json.get('message')
+    }
+    response = requests.post(f'{CONVERSATION_SERVICE_URL}/api/convos', json=data)
+    return jsonify(response.json()), response.status_code
+
+@app.route('/api/convos/<int:conversation_id>/reply', methods=['PUT'])
+def add_reply(conversation_id):
+    data = {
+        'message': request.json.get('message')
+    }
+    response = requests.put(
+        f'{CONVERSATION_SERVICE_URL}/api/convos/{conversation_id}/reply', 
+        json=data
+    )
+    return jsonify(response.json()), response.status_code
+
+@app.route('/api/convos/<int:conversation_id>', methods=['DELETE'])
+def delete_conversation(conversation_id):
+    response = requests.delete(f'{CONVERSATION_SERVICE_URL}/api/convos/{conversation_id}')
     return jsonify(response.json()), response.status_code
 
 @app.route('/api/upload', methods=['POST'])
