@@ -10,33 +10,68 @@ CORS(app)
 # turn debug on
 app.debug = True
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename='app.log')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 C_PORT = 5001
 
 # URLs for different services
-AUTH_SERVICE_URL = 'http://3.86.58.152:5000'
-# CONVERSATION_SERVICE_URL = 'http://54.165.240.60:5000'  # Updated from FEED_SERVICE_URL
-CONVERSATION_SERVICE_URL = 'http://localhost:5000'
-UPLOAD_SERVICE_URL = 'http://localhost:5002'
+AUTH_SERVICE_URL = 'http://3.84.0.80:5007'
+CONVERSATION_SERVICE_URL = 'http://54.165.240.60:5000'
+UPLOAD_SERVICE_URL = 'http://44.211.210.50:5000'
 
 # In-memory storage for upload status (in a real-world scenario, use a database)
 upload_status = {}
 
-# Implement middleware here
 @app.route('/api/register', methods=['POST'])
 def register():
-    logging.info("Registering user with data: %s", request.json)
-    response = requests.post(f'{AUTH_SERVICE_URL}/api/register', json=request.json)
-    logging.info("Register response: %s", response.json())
-    return jsonify(response.json()), response.status_code
+    if not request.json or not all(k in request.json for k in ['username', 'email', 'password']):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    try:
+        logging.info("Registering user: %s", request.json.get('username'))
+        response = requests.post(f'{AUTH_SERVICE_URL}/api/register', json=request.json)
+        
+        if response.status_code == 201:
+            logging.info("User registered successfully: %s", request.json.get('username'))
+            return jsonify({
+                'message': 'User registered successfully',
+                'user': {
+                    'username': request.json.get('username'),
+                    'email': request.json.get('email')
+                }
+            }), 201
+        else:
+            logging.warning("Registration failed: %s", response.json().get('error'))
+            return jsonify(response.json()), response.status_code
+            
+    except Exception as e:
+        logging.error("Registration error: %s", str(e))
+        return jsonify({'error': 'Authentication service unavailable'}), 503
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    logging.info("Logging in user with data: %s", request.json)
-    response = requests.post(f'{AUTH_SERVICE_URL}/api/login', json=request.json)
-    logging.info("Login response: %s", response.json())
-    return jsonify(response.json()), response.status_code
+    if not request.json or not all(k in request.json for k in ['username', 'password']):
+        return jsonify({'error': 'Missing username or password'}), 400
+
+    try:
+        logging.info("Login attempt for user: %s", request.json.get('username'))
+        response = requests.post(f'{AUTH_SERVICE_URL}/api/login', json=request.json)
+        
+        if response.status_code == 200:
+            logging.info("User logged in successfully: %s", request.json.get('username'))
+            return jsonify({
+                'message': 'Login successful',
+                'user': {
+                    'username': request.json.get('username')
+                }
+            }), 200
+        else:
+            logging.warning("Login failed for user: %s", request.json.get('username'))
+            return jsonify(response.json()), response.status_code
+            
+    except Exception as e:
+        logging.error("Login error: %s", str(e))
+        return jsonify({'error': 'Authentication service unavailable'}), 503
 
 # Conversation API
 @app.route('/api/convos', methods=['GET'])

@@ -5,7 +5,7 @@ import os
 
 class TestContentProcessor(unittest.TestCase):
     def setUp(self):
-        self.composer_url = 'http://localhost:5001'
+        self.composer_url = 'http://54.157.239.255:5001'
         self.user_id = 2122  # Test user ID
         self.test_file_path = 'test_files/test.txt'
         

@@ -2,7 +2,7 @@ import requests
 import json
 
 # Base URL of your composer service
-BASE_URL = "http://localhost:5001"
+BASE_URL = 'http://54.157.239.255:5001'
 
 def print_response(response):
     print(f"Status Code: {response.status_code}")
