@@ -4,20 +4,27 @@ import requests
 import os
 import uuid
 import logging
+from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
 # turn debug on
 app.debug = True
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 C_PORT = 5001
 
 # URLs for different services
-AUTH_SERVICE_URL = 'http://3.84.0.80:5007'
-CONVERSATION_SERVICE_URL = 'http://54.165.240.60:5000'
-UPLOAD_SERVICE_URL = 'http://44.211.210.50:5000'
+# AUTH_SERVICE_URL = 'http://18.206.119.139:5007/'
+# CONVERSATION_SERVICE_URL = 'http://54.165.240.60:5000'
+# UPLOAD_SERVICE_URL = 'http://44.211.210.50:5000'
+
+AUTH_SERVICE_URL = 'http://localhost:5007'
+CONVERSATION_SERVICE_URL = 'http://localhost:5000'
+UPLOAD_SERVICE_URL = 'http://localhost:5002'
+
+EXEMPT_ROUTES = ['/api/login', '/api/register']  # Routes that don't need authentication
 
 # In-memory storage for upload status (in a real-world scenario, use a database)
 upload_status = {}
@@ -59,11 +66,13 @@ def login():
         
         if response.status_code == 200:
             logging.info("User logged in successfully: %s", request.json.get('username'))
+            logging.debug(f"Token: {response.json().get('token')}")
             return jsonify({
                 'message': 'Login successful',
                 'user': {
-                    'username': request.json.get('username')
-                }
+                    'username': request.json.get('username'),                    
+                },
+                'token': response.json().get('token')
             }), 200
         else:
             logging.warning("Login failed for user: %s", request.json.get('username'))
@@ -163,6 +172,50 @@ def check_upload_status(upload_id):
     except Exception as e:
         logging.error(f"Status check failed: {str(e)}")
         return jsonify({'error': 'Upload service unavailable'}), 503
+
+
+# Authentication middleware
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.path in EXEMPT_ROUTES:
+            return f(*args, **kwargs)
+
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Missing or invalid authorization header'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        try:
+            # Validate token with auth service
+            response = requests.post(
+                f'{AUTH_SERVICE_URL}/api/validate-token',
+                json={'token': token}
+            )
+            
+            if response.status_code != 200:
+                return jsonify({'error': 'Invalid token'}), 401
+                
+            # Add user info to request context
+            request.user = response.json()['user']
+            return f(*args, **kwargs)
+            
+        except Exception as e:
+            logging.error(f"Token validation error: {str(e)}")
+            return jsonify({'error': 'Authentication service unavailable'}), 503
+            
+    return decorated
+
+@app.before_request
+def before_request():
+    logging.info("Received request: %s %s", request.method, request.url)
+    
+    # Skip authentication for exempt routes
+    if request.path in EXEMPT_ROUTES:
+        return
+        
+    return requires_auth(lambda: None)()
 
 @app.route('/api/files', methods=['GET'])
 def get_files():
