@@ -7,7 +7,7 @@ import logging
 from functools import wraps
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, expose_headers=["Authorization"])
 # turn debug on
 app.debug = True
 
@@ -70,7 +70,8 @@ def login():
             return jsonify({
                 'message': 'Login successful',
                 'user': {
-                    'username': request.json.get('username'),                    
+                    'username': request.json.get('username'),
+                    'id': response.json().get('user').get('id')
                 },
                 'token': response.json().get('token')
             }), 200
@@ -98,6 +99,11 @@ def get_convos():
     logging.info("Fetching conversations with params: %s", params)
     response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos', params=params)
     logging.info("Get conversations response: %s", response.json())
+    return jsonify(response.json()), response.status_code
+
+@app.route('/api/convos/<int:conversation_id>', methods=['GET'])
+def get_conversation(conversation_id):
+    response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos/{conversation_id}')
     return jsonify(response.json()), response.status_code
 
 @app.route('/api/convos', methods=['POST'])
@@ -210,6 +216,10 @@ def requires_auth(f):
 @app.before_request
 def before_request():
     logging.info("Received request: %s %s", request.method, request.url)
+    logging.debug(f"Headers: {request.headers}")
+
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
     
     # Skip authentication for exempt routes
     if request.path in EXEMPT_ROUTES:
