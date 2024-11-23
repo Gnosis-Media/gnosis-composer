@@ -5,6 +5,7 @@ import os
 import uuid
 import logging
 from functools import wraps
+from secrets_manager import get_service_secrets
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, expose_headers=["Authorization"])
@@ -13,16 +14,18 @@ app.debug = True
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-C_PORT = 5001
+secrets = get_service_secrets('gnosis-composer')
+
+C_PORT = int(secrets.get('PORT', 5000))
 
 # URLs for different services
 # AUTH_SERVICE_URL = 'http://18.206.119.139:5007/'
 # CONVERSATION_SERVICE_URL = 'http://54.165.240.60:5000'
 # UPLOAD_SERVICE_URL = 'http://44.211.210.50:5000'
 
-AUTH_SERVICE_URL = 'http://localhost:5007'
-CONVERSATION_SERVICE_URL = 'http://localhost:5000'
-UPLOAD_SERVICE_URL = 'http://localhost:5002'
+AUTH_SERVICE_URL = secrets.get('AUTH_SERVICE_URL', 'http://localhost:5007')
+CONVERSATION_SERVICE_URL = secrets.get('CONVERSATION_SERVICE_URL', 'http://localhost:5000')
+UPLOAD_SERVICE_URL = secrets.get('UPLOAD_SERVICE_URL', 'http://localhost:5002')
 
 EXEMPT_ROUTES = ['/api/login', '/api/register']  # Routes that don't need authentication
 
@@ -88,17 +91,18 @@ def login():
 def get_convos():
     user_id = request.args.get('user_id')
     limit = request.args.get('limit', 10)
-    random = request.args.get('random', 'false')
+    page = request.args.get('page', 1)
+    refresh = request.args.get('refresh', 'false')
     
     params = {
         'user_id': user_id,
         'limit': limit,
-        'random': random
+        'page': page,
+        'refresh': refresh
     }
     
     logging.info("Fetching conversations with params: %s", params)
     response = requests.get(f'{CONVERSATION_SERVICE_URL}/api/convos', params=params)
-    logging.info("Get conversations response: %s", response.json())
     return jsonify(response.json()), response.status_code
 
 @app.route('/api/convos/<int:conversation_id>', methods=['GET'])
